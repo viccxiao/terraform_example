@@ -32,8 +32,8 @@ project-example/                Owner: the squad. Changes many times a day.
   src/check_contract.py         Fails fast if DE's table drops or changes a column this project uses
   src/build_features.py         Reads DE gold, writes to its own schema
 
-.github/workflows/terraform.yml Plan on PR, apply on merge, one job + state per changed stack or team
-.github/workflows/bundle.yml    PR -> dev.pr_<n>, close -> destroy, main -> stg, tag -> prod
+ci-examples/terraform.yml       Plan on PR, apply on merge, one job + state per changed stack or team
+ci-examples/bundle.yml          PR -> dev.pr_<n>, close -> destroy, main -> stg, tag -> prod
 .github/CODEOWNERS              Who approves what
 ```
 
@@ -57,6 +57,8 @@ project-example/                Owner: the squad. Changes many times a day.
 - Breaking changes to a contract table ship as a new version (`listings_gold_v2` or a view), with the old one kept for an agreed period.
 
 ## Getting started
+
+0. The GitHub Actions workflows live in `ci-examples/` so they don't run against placeholders. Copy them to `.github/workflows/` once the steps below are done.
 
 1. Replace placeholders in `platform-infra/stacks/catalogs/terraform.tfvars.example` and `project-example/databricks.yml`.
 2. Create an S3 bucket for Terraform state and a GitHub OIDC role for it (`TF_STATE_ROLE_ARN`).

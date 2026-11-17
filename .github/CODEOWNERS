@@ -1,6 +1,6 @@
 # Platform team owns the foundations and the shared module
 /platform-infra/                          @YOUR_ORG/platform-team
-/.github/workflows/terraform.yml          @YOUR_ORG/platform-team
+/ci-examples/terraform.yml                @YOUR_ORG/platform-team
 
 # Each team approves its own space. The platform team is not a required reviewer here.
 /team-spaces/teams/data-engineering/      @YOUR_ORG/de-leads
