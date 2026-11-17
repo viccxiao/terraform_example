@@ -1,0 +1,10 @@
+# Platform team owns the foundations and the shared module
+/platform-infra/                          @YOUR_ORG/platform-team
+/.github/workflows/terraform.yml          @YOUR_ORG/platform-team
+
+# Each team approves its own space. The platform team is not a required reviewer here.
+/team-spaces/teams/data-engineering/      @YOUR_ORG/de-leads
+/team-spaces/teams/data-science-pricing/  @YOUR_ORG/ds-leads
+
+# Project repos are owned by their squad
+/project-example/                         @YOUR_ORG/ds-pricing

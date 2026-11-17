@@ -1,0 +1,22 @@
+catalogs = {
+  dev  = { storage_root = "s3://zoopla-uc-dev/catalogs/dev", comment = "Personal (usr_*) and pull request (pr_*) schemas" }
+  ds   = { storage_root = "s3://zoopla-uc-dev/catalogs/ds", comment = "Long-running data science projects (ds_*)" }
+  stg  = { storage_root = "s3://zoopla-uc-stg/catalogs/stg", comment = "Staging. Deployed from main only" }
+  prod = { storage_root = "s3://zoopla-uc-prod/catalogs/prod", comment = "Production. Service principals write, humans read" }
+}
+
+workspace_ids = {
+  dev  = 1111111111111111
+  stg  = 2222222222222222
+  prod = 3333333333333333
+}
+
+bindings = [
+  { catalog = "dev", workspace = "dev" },
+  { catalog = "ds", workspace = "dev" },
+  { catalog = "prod", workspace = "dev", read_only = true }, # DS prototypes on real prod data, cannot write to it
+  { catalog = "stg", workspace = "stg" },
+  { catalog = "prod", workspace = "prod" },
+]
+
+bundle_ci_service_principal = "00000000-0000-0000-0000-000000000000"

@@ -1,0 +1,17 @@
+# Owned by data engineering. Changes approved by @de-leads (see CODEOWNERS).
+team: data-engineering
+owners_group: de-engineers
+
+schemas:
+  # Published gold tables are a contract. Additive changes only, breaking changes ship as _v2.
+  - catalog: prod
+    name: listings_gold
+    comment: Published listing tables. Contract owner data-engineering.
+    readers: [ds-pricing, ds-search, analysts]
+    tags: { contract: stable }
+  - catalog: stg
+    name: listings_gold
+    readers: [ds-pricing, ds-search]
+  - catalog: prod
+    name: listings_silver
+    comment: Internal to data engineering. Not a contract, may change.

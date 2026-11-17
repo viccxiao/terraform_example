@@ -1,0 +1,19 @@
+# Owned by the pricing data science project. Changes approved by @ds-leads.
+team: ds-pricing
+owners_group: ds-pricing
+compute_policies: [ds-large-memory]
+
+schemas:
+  # Weeks-to-months prototyping. Humans can write here.
+  - catalog: ds
+    name: ds_pricing
+    comment: Pricing model features and experiments
+  - catalog: ds
+    name: ds_pricing_scratch
+    comment: Ad hoc research results. Safe to overwrite.
+  # Productionised outputs. Only the deploy service principal writes.
+  - catalog: stg
+    name: ds_pricing
+  - catalog: prod
+    name: ds_pricing
+    readers: [analysts]
