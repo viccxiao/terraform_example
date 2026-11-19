@@ -1,18 +1,18 @@
-# Lives in each project repo. Shown here for project-example/.
-#   PR opened/updated -> deploy to dev.pr_<number> and run it
-#   PR closed         -> destroy, which drops the pr_<number> schema
-#   merge to main     -> deploy to staging, one at a time
-#   tag v*            -> deploy to prod
-name: bundle
+# STAGE 2: one per product bundle (shown for products/smart-tags).
+#   PR opened/updated -> deploy to dev.pr_<number> and run
+#   PR closed         -> destroy, dropping the pr_<number> schema
+#   merge to main     -> deploy to qa, one at a time
+#   tag               -> deploy to prod
+name: smart-tags-bundle
 
 on:
   pull_request:
     types: [opened, synchronize, reopened, closed]
-    paths: ["project-example/**"]
+    paths: ["products/smart-tags/**"]
   push:
     branches: [main]
-    tags: ["v*"]
-    paths: ["project-example/**"]
+    tags: ["smart-tags-v*"]
+    paths: ["products/smart-tags/**"]
 
 permissions:
   id-token: write
@@ -23,22 +23,21 @@ env:
 
 defaults:
   run:
-    working-directory: project-example
+    working-directory: products/smart-tags
 
 jobs:
   pr:
     if: github.event_name == 'pull_request' && github.event.action != 'closed'
     runs-on: ubuntu-latest
-    concurrency: pr-${{ github.event.number }}
+    concurrency: smart-tags-pr-${{ github.event.number }}
     env:
       DATABRICKS_HOST: ${{ vars.DATABRICKS_DEV_HOST }}
       DATABRICKS_CLIENT_ID: ${{ vars.BUNDLE_CI_SP_CLIENT_ID }}
     steps:
       - uses: actions/checkout@v4
       - uses: databricks/setup-cli@main
-      - run: databricks bundle validate -t pr --var schema=pr_${{ github.event.number }}
       - run: databricks bundle deploy -t pr --var schema=pr_${{ github.event.number }}
-      - run: databricks bundle run -t pr --var schema=pr_${{ github.event.number }} pricing_features
+      - run: databricks bundle run -t pr --var schema=pr_${{ github.event.number }} image_golden
 
   pr-cleanup:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
@@ -51,26 +50,26 @@ jobs:
       - uses: databricks/setup-cli@main
       - run: databricks bundle destroy -t pr --var schema=pr_${{ github.event.number }} --auto-approve
 
-  staging:
+  qa:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    concurrency: staging   # shared environment, one deploy at a time
+    concurrency: { group: smart-tags-qa, cancel-in-progress: false }
     env:
-      DATABRICKS_HOST: ${{ vars.DATABRICKS_STG_HOST }}
-      DATABRICKS_CLIENT_ID: ${{ vars.TEAM_DEPLOY_SP_CLIENT_ID }}
+      DATABRICKS_HOST: ${{ vars.DATABRICKS_QA_HOST }}
+      DATABRICKS_CLIENT_ID: ${{ vars.SMART_TAGS_DEPLOY_SP_CLIENT_ID }}
     steps:
       - uses: actions/checkout@v4
       - uses: databricks/setup-cli@main
-      - run: databricks bundle deploy -t stg
+      - run: databricks bundle deploy -t qa
 
   prod:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/smart-tags-v')
     runs-on: ubuntu-latest
-    environment: prod   # GitHub environment with required reviewers
-    concurrency: prod
+    environment: prod
+    concurrency: { group: smart-tags-prod, cancel-in-progress: false }
     env:
       DATABRICKS_HOST: ${{ vars.DATABRICKS_PROD_HOST }}
-      DATABRICKS_CLIENT_ID: ${{ vars.TEAM_DEPLOY_SP_CLIENT_ID }}
+      DATABRICKS_CLIENT_ID: ${{ vars.SMART_TAGS_DEPLOY_SP_CLIENT_ID }}
     steps:
       - uses: actions/checkout@v4
       - uses: databricks/setup-cli@main

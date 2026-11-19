@@ -1,0 +1,24 @@
+# One catalog per environment, plus data_science for long-running DS projects.
+# Replace bucket names and workspace IDs with real values.
+catalogs = {
+  dev          = { storage_root = "s3://<uc-dev-bucket>/catalogs/dev", comment = "Personal (usr_*) and pull request (pr_*) schemas" }
+  data_science = { storage_root = "s3://<uc-dev-bucket>/catalogs/data_science", comment = "Long-running data science projects" }
+  qa           = { storage_root = "s3://<uc-qa-bucket>/catalogs/qa", comment = "QA. Deployed from main only" }
+  prod         = { storage_root = "s3://<uc-prod-bucket>/catalogs/prod", comment = "Production. Service principals write, humans read" }
+}
+
+workspace_ids = {
+  dev  = 1111111111111111
+  qa   = 2222222222222222
+  prod = 3333333333333333
+}
+
+bindings = [
+  { catalog = "dev", workspace = "dev" },
+  { catalog = "data_science", workspace = "dev" },
+  { catalog = "prod", workspace = "dev", read_only = true }, # prototype on real prod data, no writes
+  { catalog = "qa", workspace = "qa" },
+  { catalog = "prod", workspace = "prod" },
+]
+
+bundle_ci_service_principal = "00000000-0000-0000-0000-000000000000"

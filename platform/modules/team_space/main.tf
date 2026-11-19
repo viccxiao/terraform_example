@@ -11,7 +11,7 @@ locals {
   catalogs = toset([for s in var.schemas : s.catalog])
 }
 
-# One deploy identity per team. CI uses it (via OIDC) to deploy bundles to stg and prod.
+# One deploy identity per team. CI uses it (via OIDC) to deploy bundles to qa and prod.
 resource "databricks_service_principal" "deploy" {
   display_name = "sp-${var.team}-deploy"
 }
@@ -37,7 +37,7 @@ resource "databricks_grants" "schema" {
     privileges = local.write_privileges
   }
 
-  # Humans write only in sandbox catalogs (dev, ds). In stg and prod they read.
+  # Humans write only in sandbox catalogs (dev, data_science). In qa and prod they read.
   grant {
     principal  = var.owners_group
     privileges = contains(var.sandbox_catalogs, each.value.catalog) ? local.write_privileges : local.read_privileges
@@ -61,7 +61,7 @@ resource "databricks_grant" "catalog_use" {
   privileges = ["USE_CATALOG"]
 }
 
-# Compute policies are owned by platform-infra. A team gets access by joining the
+# Compute policies are owned by platform/stacks/compute. A team gets access by joining the
 # policy's users group, which is a non-authoritative membership.
 data "databricks_group" "policy_users" {
   for_each     = toset(var.compute_policies)

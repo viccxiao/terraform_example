@@ -1,10 +1,14 @@
-# Platform team owns the foundations and the shared module
-/platform-infra/                          @YOUR_ORG/platform-team
-/ci-examples/terraform.yml                @YOUR_ORG/platform-team
+# Placeholders: replace YOUR_ORG and team names.
 
-# Each team approves its own space. The platform team is not a required reviewer here.
-/team-spaces/teams/data-engineering/      @YOUR_ORG/de-leads
-/team-spaces/teams/data-science-pricing/  @YOUR_ORG/ds-leads
+# Platform team owns shared infrastructure and the modules
+/platform/                           @YOUR_ORG/platform
+/ci-examples/terraform-*.yml         @YOUR_ORG/platform
+/migration/                          @YOUR_ORG/platform
 
-# Project repos are owned by their squad
-/project-example/                         @YOUR_ORG/ds-pricing
+# Each team approves its own space. Platform is not a required reviewer here.
+/team-spaces/teams/data-engineering/ @YOUR_ORG/data-engineering-leads
+/team-spaces/teams/data-science/     @YOUR_ORG/data-science-leads
+
+# Each product is owned by its squad
+/products/smart-tags/                @YOUR_ORG/smart-tags
+/products/search-listings/           @YOUR_ORG/data-engineering

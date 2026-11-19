@@ -28,5 +28,5 @@ variable "compute_policies" {
 variable "sandbox_catalogs" {
   description = "Catalogs where the team's humans can write directly. Everywhere else only the deploy service principal writes."
   type        = list(string)
-  default     = ["dev", "ds"]
+  default     = ["dev", "data_science"]
 }

@@ -1,0 +1,5 @@
+# Replaces mlflow_smart_tags.tf and mlflow_smart_tags_image_golden.tf
+resources:
+  experiments:
+    smart_tags:
+      name: /Workspace/Shared/smart-tags/${bundle.target}/smart-tags

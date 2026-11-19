@@ -1,13 +1,13 @@
-"""Fail fast if DE's published table no longer has the columns this project relies on."""
+"""Fail fast if the DE listings table no longer has the columns Smart Tags relies on."""
 import argparse
 
 from pyspark.sql import SparkSession
 
 EXPECTED = {
     "listing_id": "string",
-    "price": "bigint",
-    "postcode_district": "string",
-    "bedrooms": "int",
+    "image_url": "string",
+    "description": "string",
+    "property_type": "string",
     "updated_at": "timestamp",
 }
 

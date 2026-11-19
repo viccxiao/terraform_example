@@ -5,7 +5,7 @@ terraform {
   required_providers {
     databricks = {
       source  = "databricks/databricks"
-      version = ">= 1.60.0"
+      version = ">= 1.113.0, < 2.0.0"
     }
   }
 }
@@ -23,8 +23,8 @@ locals {
 
 module "team_space" {
   # Pin a version so platform changes never break a team's plan mid-day.
-  # In separate repos: source = "git::https://github.com/<org>/platform-infra.git//modules/team_space?ref=v1.4.0"
-  source = "../platform-infra/modules/team_space"
+  # In separate repos: source = "git::https://github.com/<org>/platform.git//modules/team_space?ref=v1.4.0"
+  source = "../platform/modules/team_space"
 
   team             = local.space.team
   owners_group     = local.space.owners_group
