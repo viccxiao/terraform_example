@@ -1,0 +1,20 @@
+# Smart Tags project space: everything Smart Tags owns in Unity Catalog.
+# Image, floor plan and text taggers are one project, so one space and one state per environment.
+project: smart-tags
+owners_group: smart-tags            # people working on the project
+compute_policies: [ds-large-memory]
+
+catalogs:
+  dev: dev
+  qa: qa
+  prod: prod
+
+schemas:
+  - name: smart_tags
+    comment: Image, floor plan and text tagging outputs
+    readers: [analysts]
+  - name: smart_tags_golden
+    comment: Golden test sets, labels and profiling
+  - name: smart_tags_scratch
+    comment: Ad hoc research. Safe to overwrite.
+    environments: [dev]

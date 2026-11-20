@@ -1,0 +1,97 @@
+# Shared reusable Terraform workflow (lives in the shared workflows repo).
+# Same checks as today, plus four guardrails on apply:
+#   1. branch must be up to date with main
+#   2. optional environment lock (one PR holds QA at a time)
+#   3. apply the exact plan that was reviewed (saved plan file)
+#   4. plans flag any destroys in the run summary
+name: terraform
+
+on:
+  workflow_call:
+    inputs:
+      environment: { type: string, required: true }        # dev | qa | prod
+      command: { type: string, required: true }            # plan | apply | plan-apply (main only)
+      working-directory: { type: string, default: terraform }
+      state-key: { type: string, required: true }          # for example smart-tags/qa.tfstate
+      lock: { type: string, default: "" }                  # lock name, for example qa-smart-tags. Empty = no lock
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: read
+
+env:
+  TF_IN_AUTOMATION: "true"
+  TF_VAR_environment: ${{ inputs.environment }}   # ignored by roots that don't declare it
+
+jobs:
+  plan:
+    if: inputs.command == 'plan' || inputs.command == 'plan-apply'
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: "${{ inputs.working-directory }}" } }
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: hashicorp/setup-terraform@v3
+        with: { terraform_version: 1.11.4 }
+      - uses: aws-actions/configure-aws-credentials@v4
+        with: { role-to-assume: "${{ vars.TF_ROLE_ARN }}", aws-region: eu-west-2 }
+      - run: terraform fmt -check -recursive
+      - run: terraform init -input=false -backend-config=backend/${{ inputs.environment }}_backend.tfvars -backend-config="key=${{ inputs.state-key }}"
+      - run: terraform validate
+      # (existing Lint, Trivy, Docs and SonarQube steps stay here)
+      - run: terraform plan -input=false -out=tfplan
+      - name: Guardrail 4, flag destroys
+        run: |
+          terraform show -json tfplan > plan.json
+          destroys=$(jq -r '[.resource_changes[] | select(.change.actions | index("delete")) | .address] | .[]' plan.json)
+          { echo "### Plan: ${{ inputs.environment }}"
+            terraform show -no-color tfplan | grep -E '^Plan:|No changes' || true
+            if [ -n "$destroys" ]; then echo; echo "**⚠️ This plan destroys:**"; echo "$destroys" | sed 's/^/- `/; s/$/`/'; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          [ -n "$destroys" ] && echo "::warning::Plan for ${{ inputs.environment }} destroys resources. Check they are yours." || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-${{ inputs.environment }}-${{ github.run_id }}
+          path: ${{ inputs.working-directory }}/tfplan
+          retention-days: 3
+
+  apply:
+    # Runs after a plan in this call (plan-apply), or after a plan call earlier in the same run (apply)
+    if: ${{ !failure() && !cancelled() && (inputs.command == 'apply' || inputs.command == 'plan-apply') }}
+    needs: [plan]
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}     # GitHub Environment = the existing approval button
+    concurrency:
+      group: apply-${{ inputs.state-key }}
+      cancel-in-progress: false                # never stop an apply part way
+    defaults: { run: { working-directory: "${{ inputs.working-directory }}" } }
+    env:
+      LOCK_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/checkout@v4
+        with: { repository: "<org>/workflows", path: .workflows }
+      - uses: hashicorp/setup-terraform@v3
+        with: { terraform_version: 1.11.4 }
+      - uses: aws-actions/configure-aws-credentials@v4
+        with: { role-to-assume: "${{ vars.TF_ROLE_ARN }}", aws-region: eu-west-2 }
+
+      - name: Guardrail 1, up to date with main
+        if: github.event_name == 'pull_request'
+        run: ${{ github.workspace }}/.workflows/scripts/check-up-to-date.sh
+
+      - name: Guardrail 2, take the environment lock
+        if: github.event_name == 'pull_request' && inputs.lock != ''
+        run: ${{ github.workspace }}/.workflows/scripts/env-lock.sh acquire "${{ inputs.lock }}" "${{ github.event.number }}"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: tfplan-${{ inputs.environment }}-${{ github.run_id }}
+          path: ${{ inputs.working-directory }}
+      - run: terraform init -input=false -backend-config=backend/${{ inputs.environment }}_backend.tfvars -backend-config="key=${{ inputs.state-key }}"
+      - name: Guardrail 3, apply the reviewed plan
+        # A saved plan refuses to apply if the state changed since it was made.
+        run: terraform apply -input=false tfplan

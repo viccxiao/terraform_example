@@ -1,0 +1,44 @@
+# Replaces jobs_image_tagger.tf, jobs_text_tagger.tf and the floor plan tagger job
+resources:
+  jobs:
+    image_tagger:
+      name: smart-tags-image-tagger
+      trigger:
+        table_update: { table_names: [ "${var.listings_table}" ] }
+      tasks:
+        - task_key: tag
+          spark_python_task:
+            python_file: ../src/tagger.py
+            parameters: ["--kind", "image", "--source", "${var.listings_table}", "--target", "${var.catalog}.${var.schema}.image_tags"]
+          environment_key: default
+      environments:
+        - environment_key: default
+          spec: { client: "2" }
+
+    floor_plan_tagger:
+      name: smart-tags-floor-plan-tagger
+      trigger:
+        table_update: { table_names: [ "${var.listings_table}" ] }
+      tasks:
+        - task_key: tag
+          spark_python_task:
+            python_file: ../src/tagger.py
+            parameters: ["--kind", "floor_plan", "--source", "${var.listings_table}", "--target", "${var.catalog}.${var.schema}.floor_plan_tags"]
+          environment_key: default
+      environments:
+        - environment_key: default
+          spec: { client: "2" }
+
+    text_tagger:
+      name: smart-tags-text-tagger
+      trigger:
+        table_update: { table_names: [ "${var.listings_table}" ] }
+      tasks:
+        - task_key: tag
+          spark_python_task:
+            python_file: ../src/tagger.py
+            parameters: ["--kind", "text", "--source", "${var.listings_table}", "--target", "${var.catalog}.${var.schema}.text_tags"]
+          environment_key: default
+      environments:
+        - environment_key: default
+          spec: { client: "2" }

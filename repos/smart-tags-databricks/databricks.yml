@@ -1,0 +1,68 @@
+# Smart Tags workloads: image, floor plan and text taggers, golden sets, MLflow.
+# These used to be jobs_*, notebooks_*, tables_* and mlflow_* files in the workspaces repo.
+bundle:
+  name: smart-tags
+
+include:
+  - resources/*.yml
+
+variables:
+  catalog:
+    description: Catalog this project writes to
+  schema:
+    description: Main output schema
+    default: smart_tags
+  golden_schema:
+    description: Golden sets schema
+    default: smart_tags_golden
+  listings_table:
+    description: DE contract table Smart Tags reads (read-only)
+    default: prod.search_listings.listings
+
+targets:
+  # Personal: `databricks bundle deploy` gives you your own prefixed copy in dev.usr_<you>
+  dev:
+    mode: development
+    default: true
+    workspace:
+      host: https://<dev-workspace>.cloud.databricks.com
+    variables:
+      catalog: dev
+      schema: usr_${workspace.current_user.short_name}
+      golden_schema: usr_${workspace.current_user.short_name}
+    resources:
+      schemas:
+        personal:
+          catalog_name: dev
+          name: usr_${workspace.current_user.short_name}
+
+  # Pull request: CI runs `databricks bundle deploy -t pr --var schema=pr_<n> --var golden_schema=pr_<n>`
+  # A full, isolated copy. Deleted when the PR closes.
+  pr:
+    mode: development
+    workspace:
+      host: https://<dev-workspace>.cloud.databricks.com
+      root_path: /Workspace/Shared/.bundle/${bundle.name}/${var.schema}
+    variables:
+      catalog: dev
+    resources:
+      schemas:
+        pr_schema:
+          catalog_name: dev
+          name: ${var.schema}
+          comment: One schema per pull request. Dropped when the PR closes.
+
+  qa:
+    mode: production
+    workspace:
+      host: https://<qa-workspace>.cloud.databricks.com
+    variables:
+      catalog: qa
+      listings_table: qa.search_listings.listings
+
+  prod:
+    mode: production
+    workspace:
+      host: https://<prod-workspace>.cloud.databricks.com
+    variables:
+      catalog: prod

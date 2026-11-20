@@ -1,0 +1,72 @@
+# Platform caller workflow. Same shape as today's main.yml, calling the shared workflow.
+#   PR:     plan dev, QA, prod  ->  approved apply to dev (locked)  and  approved apply to QA (locked)
+#   Merge gate: a successful "apply-qa" is a required status check, as today
+#   main:   reset dev, then QA, to main  ->  apply prod
+name: platform
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+  push:
+    branches: [main]
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: read
+
+jobs:
+  # ---------- pull request ----------
+  plan:
+    if: github.event_name == 'pull_request' && github.event.action != 'closed'
+    strategy: { fail-fast: false, matrix: { env: [dev, qa, prod] } }
+    uses: <org>/workflows/.github/workflows/terraform.yml@v1
+    with: { environment: "${{ matrix.env }}", command: plan, state-key: "platform/catalogs/${{ matrix.env }}.tfstate", working-directory: terraform/stacks/catalogs }
+    secrets: inherit
+
+  apply-dev:
+    needs: plan
+    uses: <org>/workflows/.github/workflows/terraform.yml@v1
+    with: { environment: dev, command: apply, state-key: platform/catalogs/dev.tfstate, working-directory: terraform/stacks/catalogs, lock: dev-platform }
+    secrets: inherit
+
+  apply-qa:
+    needs: plan          # dev and QA approvals are independent, as today
+    uses: <org>/workflows/.github/workflows/terraform.yml@v1
+    with: { environment: qa, command: apply, state-key: platform/catalogs/qa.tfstate, working-directory: terraform/stacks/catalogs, lock: qa-platform }
+    secrets: inherit
+
+  release-locks:
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    env: { LOCK_BUCKET: "${{ vars.TF_STATE_BUCKET }}", GH_TOKEN: "${{ github.token }}" }
+    steps:
+      - uses: actions/checkout@v4
+        with: { repository: "<org>/workflows", path: .workflows }
+      - uses: aws-actions/configure-aws-credentials@v4
+        with: { role-to-assume: "${{ vars.TF_ROLE_ARN }}", aws-region: eu-west-2 }
+      - run: |
+          .workflows/scripts/env-lock.sh release dev-platform "${{ github.event.number }}"
+          .workflows/scripts/env-lock.sh release qa-platform "${{ github.event.number }}"
+
+  # ---------- merge to main ----------
+  main-dev:
+    if: github.event_name == 'push'
+    uses: <org>/workflows/.github/workflows/terraform.yml@v1
+    with: { environment: dev, command: plan-apply, state-key: platform/catalogs/dev.tfstate, working-directory: terraform/stacks/catalogs }
+    secrets: inherit
+
+  main-qa:
+    needs: main-dev
+    uses: <org>/workflows/.github/workflows/terraform.yml@v1
+    with: { environment: qa, command: plan-apply, state-key: platform/catalogs/qa.tfstate, working-directory: terraform/stacks/catalogs }
+    secrets: inherit
+
+  main-prod:
+    needs: main-qa
+    uses: <org>/workflows/.github/workflows/terraform.yml@v1
+    with: { environment: prod, command: plan-apply, state-key: platform/catalogs/prod.tfstate, working-directory: terraform/stacks/catalogs }
+    secrets: inherit
+
+# One stack shown (catalogs). Add the same jobs per stack (compute, sharing-federation),
+# each with its own state key, so stacks never share a state or a lock.

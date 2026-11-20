@@ -1,0 +1,47 @@
+# Replaces jobs_smart_tags_image_golden.tf and jobs_smart_tags_image_golden_review.tf
+resources:
+  jobs:
+    image_golden:
+      name: smart-tags-image-golden
+      # Run after DE refreshes listings, not on a clock
+      trigger:
+        table_update:
+          table_names: [ "${var.listings_table}" ]
+      tasks:
+        - task_key: check_contract
+          spark_python_task:
+            python_file: ../src/check_contract.py
+            parameters: ["--source", "${var.listings_table}"]
+          environment_key: default
+        - task_key: build_golden_set
+          depends_on: [{ task_key: check_contract }]
+          spark_python_task:
+            python_file: ../src/build_golden_set.py
+            parameters:
+              - --source
+              - ${var.listings_table}
+              - --target
+              - ${var.catalog}.${var.golden_schema}.image_golden
+              - --experiment
+              - ${resources.experiments.smart_tags.name}
+          environment_key: default
+      environments:
+        - environment_key: default
+          spec:
+            client: "2"
+
+    image_golden_review:
+      name: smart-tags-image-golden-review
+      schedule:
+        quartz_cron_expression: "0 0 7 ? * MON"
+        timezone_id: Europe/London
+      tasks:
+        - task_key: review
+          spark_python_task:
+            python_file: ../src/review_golden_set.py
+            parameters: ["--table", "${var.catalog}.${var.golden_schema}.image_golden"]
+          environment_key: default
+      environments:
+        - environment_key: default
+          spec:
+            client: "2"

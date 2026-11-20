@@ -1,0 +1,43 @@
+# Smart Tags project space (schemas, grants, service principal). Same flow as the platform,
+# but its own state (smart-tags/<env>.tfstate) and its own locks, so it never waits on other projects.
+name: smart-tags-terraform
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+    paths: ["terraform/**"]
+  push:
+    branches: [main]
+    paths: ["terraform/**"]
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: read
+
+jobs:
+  plan:
+    if: github.event_name == 'pull_request' && github.event.action != 'closed'
+    strategy: { fail-fast: false, matrix: { env: [dev, qa, prod] } }
+    uses: <org>/workflows/.github/workflows/terraform.yml@v1
+    with: { environment: "${{ matrix.env }}", command: plan, state-key: "smart-tags/${{ matrix.env }}.tfstate" }
+    secrets: inherit
+
+  apply-dev:
+    needs: plan
+    uses: <org>/workflows/.github/workflows/terraform.yml@v1
+    with: { environment: dev, command: apply, state-key: smart-tags/dev.tfstate, lock: dev-smart-tags-tf }
+    secrets: inherit
+
+  apply-qa:
+    needs: plan
+    uses: <org>/workflows/.github/workflows/terraform.yml@v1
+    with: { environment: qa, command: apply, state-key: smart-tags/qa.tfstate, lock: qa-smart-tags-tf }
+    secrets: inherit
+
+  main:
+    if: github.event_name == 'push'
+    strategy: { max-parallel: 1, matrix: { env: [dev, qa, prod] } }   # dev, then QA, then prod
+    uses: <org>/workflows/.github/workflows/terraform.yml@v1
+    with: { environment: "${{ matrix.env }}", command: plan-apply, state-key: "smart-tags/${{ matrix.env }}.tfstate" }
+    secrets: inherit

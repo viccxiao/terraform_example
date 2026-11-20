@@ -1,0 +1,104 @@
+# Smart Tags workloads (Asset Bundle). Follows the same promotion flow as today:
+#   PR opened/updated  -> automatic, isolated copy in dev.pr_<n> (no approval needed, touches nobody)
+#   PR approved deploy -> QA, holding the Smart Tags QA lock   (required check before merge)
+#   merge to main      -> QA reset to main, then prod (approval)
+#   PR closed          -> PR copy destroyed, QA lock released
+name: smart-tags-bundle
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+    paths-ignore: ["terraform/**"]
+  push:
+    branches: [main]
+    paths-ignore: ["terraform/**"]
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: read
+
+env:
+  DATABRICKS_AUTH_TYPE: github-oidc
+  PR_SCHEMA: pr_${{ github.event.number }}
+
+jobs:
+  pr-copy:
+    if: github.event_name == 'pull_request' && github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    concurrency: { group: "smart-tags-pr-${{ github.event.number }}", cancel-in-progress: true }   # safe: only this PR's copy
+    env:
+      DATABRICKS_HOST: ${{ vars.DATABRICKS_DEV_HOST }}
+      DATABRICKS_CLIENT_ID: ${{ vars.BUNDLE_CI_SP_CLIENT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: databricks/setup-cli@main
+      - run: databricks bundle validate -t pr --var schema=$PR_SCHEMA --var golden_schema=$PR_SCHEMA
+      - run: databricks bundle deploy -t pr --var schema=$PR_SCHEMA --var golden_schema=$PR_SCHEMA
+      - run: databricks bundle run -t pr --var schema=$PR_SCHEMA --var golden_schema=$PR_SCHEMA image_golden
+
+  deploy-qa:
+    needs: pr-copy
+    runs-on: ubuntu-latest
+    environment: qa                 # the existing approval button
+    concurrency: { group: smart-tags-qa, cancel-in-progress: false }
+    env:
+      DATABRICKS_HOST: ${{ vars.DATABRICKS_QA_HOST }}
+      DATABRICKS_CLIENT_ID: ${{ vars.SMART_TAGS_DEPLOY_SP_CLIENT_ID }}
+      LOCK_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/checkout@v4
+        with: { repository: "<org>/workflows", path: .workflows }
+      - uses: aws-actions/configure-aws-credentials@v4
+        with: { role-to-assume: "${{ vars.TF_ROLE_ARN }}", aws-region: eu-west-2 }
+      - uses: databricks/setup-cli@main
+      - run: .workflows/scripts/check-up-to-date.sh
+      - run: .workflows/scripts/env-lock.sh acquire qa-smart-tags "${{ github.event.number }}"
+      - run: databricks bundle deploy -t qa
+
+  cleanup:
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    env:
+      DATABRICKS_HOST: ${{ vars.DATABRICKS_DEV_HOST }}
+      DATABRICKS_CLIENT_ID: ${{ vars.BUNDLE_CI_SP_CLIENT_ID }}
+      LOCK_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with: { repository: "<org>/workflows", path: .workflows }
+      - uses: aws-actions/configure-aws-credentials@v4
+        with: { role-to-assume: "${{ vars.TF_ROLE_ARN }}", aws-region: eu-west-2 }
+      - uses: databricks/setup-cli@main
+      - run: databricks bundle destroy -t pr --var schema=$PR_SCHEMA --var golden_schema=$PR_SCHEMA --auto-approve
+      - run: .workflows/scripts/env-lock.sh release qa-smart-tags "${{ github.event.number }}"
+
+  main-qa:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: qa
+    concurrency: { group: smart-tags-qa, cancel-in-progress: false }
+    env:
+      DATABRICKS_HOST: ${{ vars.DATABRICKS_QA_HOST }}
+      DATABRICKS_CLIENT_ID: ${{ vars.SMART_TAGS_DEPLOY_SP_CLIENT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: databricks/setup-cli@main
+      - run: databricks bundle deploy -t qa          # QA always ends up matching main
+
+  main-prod:
+    needs: main-qa
+    runs-on: ubuntu-latest
+    environment: prod
+    concurrency: { group: smart-tags-prod, cancel-in-progress: false }
+    env:
+      DATABRICKS_HOST: ${{ vars.DATABRICKS_PROD_HOST }}
+      DATABRICKS_CLIENT_ID: ${{ vars.SMART_TAGS_DEPLOY_SP_CLIENT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: databricks/setup-cli@main
+      - run: databricks bundle deploy -t prod
