@@ -2,8 +2,6 @@
 
 A worked example for Zoopla, following the architecture review on 19 November 2026. It shows how to keep today's review and approval flow while stopping pull requests from overwriting each other, starting with **Smart Tags** as the pilot project.
 
-📄 **Slides:** [docs/Zoopla_Terraform_Review.pdf](docs/Zoopla_Terraform_Review.pdf)
-
 > **Template only.** Hosts, IDs, buckets, groups and `<org>` are placeholders. Nothing here has been applied.
 
 ## What we agreed
